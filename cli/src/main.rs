@@ -33,6 +33,7 @@ struct Mode {
     /// Specifies the refresh rate to apply to the output.
     #[arg(long)]
     refresh: Option<f32>,
+    vrr_target_rate: Option<u32>,
     /// Specfies the adaptive sync mode to apply to the output.
     #[arg(long, value_enum)]
     adaptive_sync: Option<AdaptiveSync>,
@@ -58,6 +59,7 @@ impl Mode {
         HeadConfiguration {
             size: Some((self.width as u32, self.height as u32)),
             refresh: self.refresh,
+            vrr_target_rate: self.vrr_target_rate,
             adaptive_sync: self
                 .adaptive_sync
                 .map(|adaptive_sync| adaptive_sync.adaptive_sync_state_ext()),
