@@ -67,6 +67,8 @@ pub struct HeadConfiguration {
     pub scale: Option<f64>,
     /// Specifies a transformation matrix to apply to the output.
     pub transform: Option<Transform>,
+    /// Specifies the target refresh rate for VRR.
+    pub vrr_target_rate: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -248,8 +250,14 @@ fn send_mode_to_config_head(
         head_config.set_transform(transform);
     }
 
-    if let Some((x, y)) = args.pos {
-        head_config.set_position(x, y);
+    if let Some(pos) = args.pos {
+        head_config.set_position(pos.0, pos.1);
+    }
+
+    if let Some(vrr_target_rate) = args.vrr_target_rate {
+        if let Some(cosmic_obj) = cosmic_head_config.as_ref() {
+            cosmic_obj.set_vrr_target_rate(vrr_target_rate);
+        }
     }
 
     let mode_iter = || {
@@ -483,6 +491,7 @@ impl Context {
                 pos: Some((output.position_x, output.position_y)),
                 scale: Some(output.scale),
                 transform: output.transform,
+                vrr_target_rate: output.vrr_target_rate,
             };
             if output.enabled {
                 if let Some(from) = output.mirroring.as_ref() {
