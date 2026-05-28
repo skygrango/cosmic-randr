@@ -27,12 +27,14 @@ struct Mode {
     /// Name of the output that the display is connected to.
     output: String,
     /// Specifies the width of the output picture.
-    width: i32,
+    width: Option<i32>,
     /// Specifies the height of the output picture.
-    height: i32,
+    height: Option<i32>,
     /// Specifies the refresh rate to apply to the output.
     #[arg(long)]
     refresh: Option<f32>,
+    #[arg(long)]
+    vrr_target_rate: Option<f32>,
     /// Specfies the adaptive sync mode to apply to the output.
     #[arg(long, value_enum)]
     adaptive_sync: Option<AdaptiveSync>,
@@ -56,8 +58,13 @@ struct Mode {
 impl Mode {
     fn to_head_config(&self) -> HeadConfiguration {
         HeadConfiguration {
-            size: Some((self.width as u32, self.height as u32)),
+            size: if let (Some(w), Some(h)) = (self.width, self.height) {
+                Some((w as u32, h as u32))
+            } else {
+                None
+            },
             refresh: self.refresh,
+            vrr_target_rate: self.vrr_target_rate.map(|rate| (rate * 1000.0) as u32),
             adaptive_sync: self
                 .adaptive_sync
                 .map(|adaptive_sync| adaptive_sync.adaptive_sync_state_ext()),
@@ -550,6 +557,7 @@ impl App {
                     });
                     current.mirroring = head.mirroring.clone();
                     current.xwayland_primary = head.xwayland_primary;
+                    current.vrr_target_rate = head.vrr_target_rate;
                     if let Some(cur_mode_id) = head
                         .current
                         .and_then(|k| list.modes.get(k))
@@ -691,6 +699,10 @@ fn list(context: &Context) {
                     Color::Red.paint("false")
                 })
             }
+            if let Some(vrr_target_rate) = head.vrr_target_rate {
+                (Color::Yellow.bold().paint("\n  VRR Target Rate: "))
+                (Color::Cyan.paint(format!("{}.{:03} Hz", vrr_target_rate / 1000, vrr_target_rate % 1000)))
+            }
             (Color::Yellow.bold().paint("\n\n  Modes:"))
         );
 
@@ -774,6 +786,9 @@ fn list_kdl(context: &Context) {
                     "#false"
                 })
                 "\n"
+            }
+            if let Some(vrr_target_rate) = head.vrr_target_rate {
+                "  vrr_target_rate " (vrr_target_rate) "\n"
             }
             if !head.serial_number.is_empty() {
                 "  serial_number \"" (head.serial_number) "\"\n"

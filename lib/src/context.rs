@@ -67,6 +67,8 @@ pub struct HeadConfiguration {
     pub scale: Option<f64>,
     /// Specifies a transformation matrix to apply to the output.
     pub transform: Option<Transform>,
+    /// Specifies the target refresh rate for VRR.
+    pub vrr_target_rate: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -248,8 +250,16 @@ fn send_mode_to_config_head(
         head_config.set_transform(transform);
     }
 
-    if let Some((x, y)) = args.pos {
-        head_config.set_position(x, y);
+    if let Some(pos) = args.pos {
+        head_config.set_position(pos.0, pos.1);
+    }
+
+    if let Some(vrr_target_rate) = args.vrr_target_rate {
+        if let Some(cosmic_obj) = cosmic_head_config.as_ref().filter(|obj| {
+            obj.version() >= zcosmic_output_configuration_head_v1::REQ_SET_VRR_TARGET_RATE_SINCE
+        }) {
+            cosmic_obj.set_vrr_target_rate(vrr_target_rate);
+        }
     }
 
     let mode_iter = || {
@@ -281,32 +291,39 @@ fn send_mode_to_config_head(
         }
     }
 
-    if let Some(refresh) = args.refresh {
-        #[allow(clippy::cast_possible_truncation)]
-        let refresh = (refresh * 1000.0) as i32;
+    if args.refresh.is_some() || args.size.is_some() {
+        if let Some(refresh) = args.refresh {
+            #[allow(clippy::cast_possible_truncation)]
+            let refresh = (refresh * 1000.0) as i32;
 
-        let min = refresh - 501;
-        let max = refresh + 501;
+            let min = refresh - 501;
+            let max = refresh + 501;
 
-        let mode = mode_iter()
-            .find(|mode| mode.refresh == refresh)
-            .or_else(|| {
-                mode_iter()
-                    .filter(|mode| min < mode.refresh && max > mode.refresh)
-                    .min_by_key(|mode| (mode.refresh - refresh).abs())
-            });
+            let mode = mode_iter()
+                .find(|mode| mode.refresh == refresh)
+                .or_else(|| {
+                    mode_iter()
+                        .filter(|mode| min < mode.refresh && max > mode.refresh)
+                        .min_by_key(|mode| (mode.refresh - refresh).abs())
+                });
 
-        if let Some(mode) = mode {
+            if let Some(mode) = mode {
+                head_config.set_mode(&mode.wlr_mode);
+                Ok(())
+            } else {
+                Err(ConfigurationError::ModeNotFound)
+            }
+        } else if let Some(mode) = mode_iter()
+            .find(|m| Some(m.wlr_mode.id()) == head.current_mode)
+            .or_else(|| mode_iter().next())
+        {
             head_config.set_mode(&mode.wlr_mode);
             Ok(())
         } else {
             Err(ConfigurationError::ModeNotFound)
         }
-    } else if let Some(mode) = mode_iter().next() {
-        head_config.set_mode(&mode.wlr_mode);
-        Ok(())
     } else {
-        Err(ConfigurationError::ModeNotFound)
+        Ok(())
     }
 }
 
@@ -483,6 +500,7 @@ impl Context {
                 pos: Some((output.position_x, output.position_y)),
                 scale: Some(output.scale),
                 transform: output.transform,
+                vrr_target_rate: output.vrr_target_rate,
             };
             if output.enabled {
                 if let Some(from) = output.mirroring.as_ref() {

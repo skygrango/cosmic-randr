@@ -59,6 +59,7 @@ pub struct Output {
     pub current: Option<ModeKey>,
     pub adaptive_sync: Option<AdaptiveSyncState>,
     pub adaptive_sync_availability: Option<AdaptiveSyncAvailability>,
+    pub vrr_target_rate: Option<u32>,
     pub xwayland_primary: Option<bool>,
 }
 
@@ -86,6 +87,7 @@ impl Output {
             current: None,
             adaptive_sync: None,
             adaptive_sync_availability: None,
+            vrr_target_rate: None,
             xwayland_primary: None,
         }
     }
@@ -489,6 +491,18 @@ impl TryFrom<KdlDocument> for List {
                         }
                     }
 
+                    "vrr_target_rate" => {
+                        if let Some(entry) = node.entries().first() {
+                            output.vrr_target_rate =
+                                entry.value().as_integer().map(|v| v as u32);
+                        } else {
+                            errors.push(KdlParseError::InvalidValue {
+                                key: "vrr_target_rate".to_string(),
+                                value: node.entries().to_vec(),
+                            });
+                        }
+                    }
+
                     // Switch to parsing output modes.
                     "modes" => {
                         let Some(children) = node.children() else {
@@ -668,6 +682,13 @@ impl From<List> for KdlDocument {
                 children.nodes_mut().push(node);
             }
 
+            // vrr_target_rate node
+            if let Some(vrr_target_rate) = output.vrr_target_rate {
+                let mut node = kdl::KdlNode::new("vrr_target_rate");
+                node.push(vrr_target_rate as i128);
+                children.nodes_mut().push(node);
+            }
+
             // mirroring node
             if let Some(mirroring) = &output.mirroring {
                 let mut node = kdl::KdlNode::new("mirroring");
@@ -755,6 +776,7 @@ mod test {
             current: Some(mode1_key),
             adaptive_sync: Some(AdaptiveSyncState::Auto),
             adaptive_sync_availability: Some(AdaptiveSyncAvailability::Supported),
+            vrr_target_rate: Some(144),
             xwayland_primary: Some(true),
         };
 
@@ -795,6 +817,7 @@ mod test {
             orig_output.adaptive_sync_availability,
             parsed_output.adaptive_sync_availability
         );
+        assert_eq!(orig_output.vrr_target_rate, parsed_output.vrr_target_rate);
         assert_eq!(orig_output.xwayland_primary, parsed_output.xwayland_primary);
 
         // Compare modes by value (order should be preserved)

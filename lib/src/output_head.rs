@@ -41,6 +41,7 @@ pub struct OutputHead {
     pub transform: Option<Transform>,
     pub mirroring: Option<String>,
     pub xwayland_primary: Option<bool>,
+    pub vrr_target_rate: Option<u32>,
     pub wlr_head: ZwlrOutputHeadV1,
     pub cosmic_head: Option<ZcosmicOutputHeadV1>,
 }
@@ -171,6 +172,9 @@ impl Dispatch<ZcosmicOutputHeadV1, ObjectId> for Context {
             ZcosmicOutputHeadEvent::XwaylandPrimary { state } => {
                 head.xwayland_primary = Some(state != 0);
             }
+            ZcosmicOutputHeadEvent::VrrTargetRate { vrr_target_rate } => {
+                head.vrr_target_rate = Some(vrr_target_rate);
+            }
             _ => tracing::debug!(?event, "unknown event"),
         }
     }
@@ -198,6 +202,7 @@ impl OutputHead {
             transform: None,
             mirroring: None,
             xwayland_primary: None,
+            vrr_target_rate: None,
             wlr_head,
             cosmic_head,
         }
